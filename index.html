@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Counter</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #000;
+    --text: #fff;
+    --panel: #000;
+    --border: rgba(255,255,255,0.08);
+  }
+  html, body {
+    height: 100%;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    overflow: hidden;
+  }
+  .screen { display: none; height: 100%; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  .top-stats {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 14px 4px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .stat { text-align: center; flex: 1; }
+  .stat .value {
+    font-size: 20px; font-weight: bold; color: inherit; line-height: 1.2;
+    text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+  }
+  .stat .label {
+    font-size: 11px; opacity: 0.6; margin-top: 4px;
+    text-shadow: 0 0 6px currentColor;
+  }
+
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 15px; background: var(--panel);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .toolbar button {
+    background: transparent; border: none; color: inherit;
+    font-size: 20px; cursor: pointer; padding: 4px 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .toolbar button svg {
+    width: 22px; height: 22px;
+    filter: drop-shadow(0 0 6px currentColor);
+  }
+  .toolbar button svg path,
+  .toolbar button svg rect,
+  .toolbar button svg line,
+  .toolbar button svg polyline {
+    stroke: currentColor; stroke-width: 1.8; fill: none;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  .editor {
+    flex: 1; width: 100%; background: var(--panel); color: inherit;
+    border: none; padding: 15px; font-size: 14px; line-height: 1.6;
+    resize: none; outline: none;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .editor::placeholder { opacity: 0.3; text-shadow: none; }
+
+  .page-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 15px; background: var(--panel);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .page-header h2 {
+    font-size: 16px; font-weight: normal; color: inherit;
+    text-shadow: 0 0 8px currentColor;
+  }
+  .back-btn {
+    background: transparent; border: none; color: inherit;
+    font-size: 20px; cursor: pointer; padding: 4px 10px;
+    text-shadow: 0 0 8px currentColor;
+  }
+
+  .page-content {
+    flex: 1; overflow-y: auto; padding: 15px; background: var(--panel);
+  }
+
+  .settings-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 15px; margin-bottom: 8px; color: inherit;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .switch {
+    position: relative; width: 44px; height: 24px;
+    background: rgba(255,255,255,0.15); border-radius: 12px;
+    cursor: pointer; transition: 0.3s;
+  }
+  .switch::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; background: currentColor;
+    border-radius: 50%; transition: 0.3s;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .switch.on { background: rgba(255,255,255,0.5); }
+  .switch.on::after { left: 23px; }
+
+  .theme-item {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 15px; margin-bottom: 8px; cursor: pointer;
+    color: inherit; text-shadow: 0 0 6px currentColor;
+  }
+  .theme-item:active { background: rgba(255,255,255,0.1); }
+  .theme-item.active { border-color: currentColor; box-shadow: 0 0 12px currentColor; }
+  .theme-preview {
+    width: 40px; height: 40px; border-radius: 10px;
+    border: 2px solid rgba(255,255,255,0.15);
+  }
+
+  .setting-label {
+    font-size: 12px; opacity: 0.6; text-transform: uppercase;
+    letter-spacing: 1px; margin: 15px 0 8px 0;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .slider-row input[type="range"] { flex: 1; accent-color: #fff; }
+  .slider-value {
+    min-width: 50px; text-align: right; font-size: 13px;
+    text-shadow: 0 0 6px currentColor;
+  }
+  select {
+    width: 100%; padding: 10px;
+    background: rgba(255,255,255,0.06); color: inherit;
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px; outline: none;
+  }
+  select option { background: #111; color: #fff; }
+  .checkbox-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; font-size: 14px;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .checkbox-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: #fff; }
+
+  .compare-field {
+    width: 100%; height: 130px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px;
+    color: inherit; font-size: 14px;
+    resize: none; outline: none; margin-bottom: 10px;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .compare-field:focus { border-color: rgba(255,255,255,0.4); }
+
+  .compare-btn {
+    width: 100%; padding: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+    border-radius: 12px; color: inherit;
+    font-size: 15px; font-weight: bold;
+    cursor: pointer; margin-bottom: 18px;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .compare-btn:active { background: rgba(255,255,255,0.15); }
+
+  .stats-row { display: flex; gap: 10px; margin-bottom: 18px; }
+  .stat-box {
+    flex: 1; background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 10px; text-align: center;
+  }
+  .stat-box .big {
+    font-size: 26px; font-weight: bold; color: inherit;
+    text-shadow: 0 0 10px currentColor;
+  }
+  .stat-box .small {
+    font-size: 12px; opacity: 0.6; margin-top: 6px;
+    text-shadow: 0 0 6px currentColor;
+  }
+
+  .result-label {
+    font-size: 14px; opacity: 0.6; margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: 1px;
+    text-shadow: 0 0 6px currentColor;
+  }
+
+  .result-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+    line-height: 2; word-wrap: break-word;
+  }
+  .word {
+    padding: 4px 8px; border-radius: 6px;
+    margin-right: 6px; display: inline-block; margin-bottom: 4px;
+    font-size: 14px;
+  }
+  .word.match { background: rgba(255,255,255,0.9); color: #000; }
+  .word.diff {
+    background: rgba(255,80,80,0.3); color: #ff8080;
+    text-decoration: line-through;
+  }
+
+  .phrase-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+  .phrase-item .phrase-text {
+    font-size: 14px;
+    color: inherit;
+    text-shadow: 0 0 6px currentColor;
+    line-height: 1.4;
+  }
+  .phrase-item .phrase-count {
+    font-size: 12px;
+    opacity: 0.5;
+    margin-top: 4px;
+  }
+  .phrase-item .count-badge {
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: bold;
+    color: inherit;
+    text-shadow: 0 0 6px currentColor;
+    flex-shrink: 0;
+    margin-left: 10px;
+  }
+
+  .menu-overlay {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none; z-index: 100;
+  }
+  .menu-overlay.open { display: block; }
+
+  .menu-popup {
+    position: fixed; top: 20px; left: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 18px;
+    width: 260px; z-index: 101;
+    box-shadow: 0 0 40px rgba(0,0,0,0.9);
+    display: none;
+  }
+  .menu-popup.open { display: block; }
+
+  .menu-title {
+    font-size: 13px; color: rgba(255,255,255,0.5);
+    text-transform: uppercase; letter-spacing: 2px;
+    margin-bottom: 15px; padding-left: 5px;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .menu-popup-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 10px; color: inherit;
+    cursor: pointer; border-radius: 10px; font-size: 15px;
+    text-shadow: 0 0 6px currentColor;
+  }
+  .menu-popup-item:active { background: rgba(255,255,255,0.1); }
+  .menu-popup-item .icon { width: 22px; text-align: center; font-size: 16px; }
+  .menu-divider {
+    height: 1px; background: var(--border);
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+  <!-- ГЛАВНЫЙ ЭКРАН -->
+<div class="screen active" id="screen-main">
+  <div class="top-stats">
+    <div class="stat"><div class="value" id="s-chars">0</div><div class="label">Символы</div></div>
+    <div class="stat"><div class="value" id="s-words">0</div><div class="label">Слова</div></div>
+    <div class="stat"><div class="value" id="s-sentences">0</div><div class="label">Предложения</div></div>
+    <div class="stat"><div class="value" id="s-paragraphs">0</div><div class="label">Абзацы</div></div>
+    <div class="stat"><div class="value" id="s-unique">0</div><div class="label">Уникальные</div></div>
+    <div class="stat"><div class="value" id="s-time">00:00</div><div class="label">Время</div></div>
+  </div>
+
+  <div class="toolbar">
+    <button onclick="openMenu()">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <button onclick="copyText()">
+      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+    <button onclick="clearText()">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <textarea class="editor" id="input" placeholder="Вставь текст сюда..." oninput="onInput()"></textarea>
+</div>
+
+<!-- ЭКРАН: НАСТРОЙКИ -->
+<div class="screen" id="screen-settings">
+  <div class="page-header">
+    <button class="back-btn" onclick="showScreen('main')">←</button>
+    <h2>Настройки</h2>
+  </div>
+  <div class="page-content">
+    <div class="settings-item"><span>Уникальные слова</span><div class="switch on" onclick="toggleSetting('unique', this)"></div></div>
+    <div class="settings-item"><span>Символы</span><div class="switch on" onclick="toggleSetting('chars', this)"></div></div>
+    <div class="settings-item"><span>Предложения</span><div class="switch on" onclick="toggleSetting('sentences', this)"></div></div>
+    <div class="settings-item"><span>Абзацы</span><div class="switch on" onclick="toggleSetting('paragraphs', this)"></div></div>
+    <div class="settings-item"><span>Автокопирование</span><div class="switch" onclick="toggleSetting('autocopy', this)"></div></div>
+    <div class="settings-item"><span>Автопрокрутка</span><div class="switch on" onclick="toggleSetting('autoscroll', this)"></div></div>
+    <div class="settings-item"><span>Автосохранение</span><div class="switch on" onclick="toggleSetting('autosave', this)"></div></div>
+  </div>
+</div>
+
+<!-- ЭКРАН: ТЕМЫ -->
+<div class="screen" id="screen-themes">
+  <div class="page-header">
+    <button class="back-btn" onclick="showScreen('main')">←</button>
+    <h2>Темы</h2>
+  </div>
+  <div class="page-content">
+    <div class="theme-item" onclick="setTheme('black', this)">
+      <div class="theme-preview" style="background:#000;"></div><span>Чёрная</span>
+    </div>
+    <div class="theme-item" onclick="setTheme('green', this)">
+      <div class="theme-preview" style="background:#0d3d2a;"></div><span>Зелёная</span>
+    </div>
+    <div class="theme-item" onclick="setTheme('gray', this)">
+      <div class="theme-preview" style="background:#555;"></div><span>Серая</span>
+    </div>
+    <div class="theme-item" onclick="setTheme('white', this)">
+      <div class="theme-preview" style="background:#f0f0f0;"></div><span>Белая</span>
+    </div>
+  </div>
+</div>
+
+<!-- ЭКРАН: ШРИФТ И ВИД -->
+<div class="screen" id="screen-font-settings">
+  <div class="page-header">
+    <button class="back-btn" onclick="showScreen('main')">←</button>
+    <h2>Шрифт и вид</h2>
+  </div>
+  <div class="page-content">
+    <div class="setting-label">Шрифт</div>
+    <select id="font-family" onchange="applyFontSettings()">
+      <option value="'Segoe UI', Arial, sans-serif">Segoe UI</option>
+      <option value="Arial, sans-serif">Arial</option>
+      <option value="'Roboto', sans-serif">Roboto</option>
+      <option value="'Courier New', monospace">Courier New</option>
+      <option value="'Georgia', serif">Georgia</option>
+      <option value="'Times New Roman', serif">Times New Roman</option>
+    </select>
+    <div class="checkbox-row"><input type="checkbox" id="font-bold" onchange="applyFontSettings()"><label for="font-bold">Жирный</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="font-italic" onchange="applyFontSettings()"><label for="font-italic">Курсив</label></div>
+
+    <div class="setting-label">Размер текста</div>
+    <div class="slider-row"><input type="range" id="font-size" min="10" max="30" value="14" oninput="applyFontSettings()"><div class="slider-value" id="font-size-val">14px</div></div>
+
+    <div class="setting-label">Межстрочный интервал</div>
+    <div class="slider-row"><input type="range" id="line-height" min="10" max="30" value="16" oninput="applyFontSettings()"><div class="slider-value" id="line-height-val">1.6</div></div>
+
+    <div class="setting-label">Размер поля ввода</div>
+    <div class="slider-row"><input type="range" id="editor-scale" min="50" max="100" value="100" oninput="applyFontSettings()"><div class="slider-value" id="editor-scale-val">100%</div></div>
+
+    <div class="setting-label">Размер панели статистики</div>
+    <div class="slider-row"><input type="range" id="stats-scale" min="50" max="100" value="100" oninput="applyFontSettings()"><div class="slider-value" id="stats-scale-val">100%</div></div>
+
+    <button class="compare-btn" onclick="resetFontSettings()" style="margin-top:20px;">🔄 Сбросить настройки</button>
+  </div>
+</div>
+
+<!-- ЭКРАН: СРАВНЕНИЕ ТЕКСТОВ + АНАЛИЗ -->
+<div class="screen" id="screen-compare">
+  <div class="page-header">
+    <button class="back-btn" onclick="showScreen('main')">←</button>
+    <h2>Сравнение текстов</h2>
+  </div>
+  <div class="page-content">
+    <div class="setting-label">Текст 1</div>
+    <textarea class="compare-field" id="text1" placeholder="Первый текст..."></textarea>
+    <div class="setting-label">Текст 2</div>
+    <textarea class="compare-field" id="text2" placeholder="Второй текст..."></textarea>
+    <button class="compare-btn" onclick="compareTexts()">⚡ Сравнить</button>
+    <div id="compareResult"></div>
+
+    <div class="setting-label" style="margin-top:25px;">Анализ текста</div>
+    <button class="compare-btn" onclick="analyzeText()">🔍 Найти повторяющиеся фразы</button>
+    <div id="analysisContent">
+      <div style="text-align:center; opacity:0.5; padding:20px;">Нажми кнопку выше</div>
+    </div>
+  </div>
+</div>
+
+<!-- ЭКРАН: ЭКСПОРТ -->
+<div class="screen" id="screen-export">
+  <div class="page-header">
+    <button class="back-btn" onclick="showScreen('main')">←</button>
+    <h2>Экспорт</h2>
+  </div>
+  <div class="page-content">
+    <div class="setting-label">Что сохранить</div>
+    <div class="settings-item"><span>Текст</span><div class="switch on" id="exp-text" onclick="toggleExport('text', this)"></div></div>
+    <div class="settings-item"><span>Статистику</span><div class="switch on" id="exp-stats" onclick="toggleExport('stats', this)"></div></div>
+
+    <div class="setting-label">Имя файла</div>
+    <input type="text" id="export-filename" value="word-counter" style="width:100%; padding:10px; background:rgba(255,255,255,0.06); color:inherit; border:1px solid var(--border); border-radius:10px; font-size:14px; outline:none; margin-bottom:15px;">
+
+    <button class="compare-btn" onclick="exportToFile()">💾 Сохранить в файл</button>
+    <button class="compare-btn" onclick="shareText()">📤 Поделиться</button>
+
+    <div id="exportResult"></div>
+  </div>
+</div>
+
+<!-- ВСПЛЫВАЮЩЕЕ МЕНЮ -->
+<div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+<div class="menu-popup" id="menuPopup">
+  <div class="menu-title">МЕНЮ</div>
+  <div class="menu-popup-item" onclick="menuAction('settings')"><span class="icon">⚙</span> Настройки</div>
+  <div class="menu-popup-item" onclick="menuAction('compare')"><span class="icon">📄</span> Сравнение и анализ</div>
+  <div class="menu-popup-item" onclick="menuAction('export')"><span class="icon">💾</span> Экспорт</div>
+  <div class="menu-popup-item" onclick="menuAction('themes')"><span class="icon">🎨</span> Темы</div>
+  <div class="menu-popup-item" onclick="menuAction('font-settings')"><span class="icon">🔤</span> Шрифт и вид</div>
+  <div class="menu-divider"></div>
+  <div class="menu-popup-item" onclick="closeMenu()"><span class="icon">←</span> Закрыть</div>
+</div>
+
+<script>
+  const settings = {
+  unique: true,
+  chars: true,
+  sentences: true,
+  paragraphs: true,
+  autocopy: false,
+  autoscroll: true,
+  autosave: true
+};
+
+const exportSettings = {
+  text: true,
+  stats: true
+};
+
+const fontSettings = {
+  family: "'Segoe UI', Arial, sans-serif",
+  bold: false,
+  italic: false,
+  size: 14,
+  lineHeight: 1.6,
+  editorScale: 100,
+  statsScale: 100
+};
+
+let startTime = null;
+let timerInterval = null;
+
+const themes = {
+  black: { bg: '#000', text: '#fff', panel: '#000', border: 'rgba(255,255,255,0.08)' },
+  green: { bg: '#0d1f1a', text: '#fff', panel: '#0a1a15', border: 'rgba(255,255,255,0.1)' },
+  gray:  { bg: '#555', text: '#fff', panel: '#444', border: 'rgba(255,255,255,0.15)' },
+  white: { bg: '#f0f0f0', text: '#000', panel: '#e0e0e0', border: 'rgba(0,0,0,0.15)' }
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('wc_theme');
+  if (savedTheme && themes[savedTheme]) {
+    const t = themes[savedTheme];
+    document.documentElement.style.setProperty('--bg', t.bg);
+    document.documentElement.style.setProperty('--text', t.text);
+    document.documentElement.style.setProperty('--panel', t.panel);
+    document.documentElement.style.setProperty('--border', t.border);
+  }
+
+  const savedFont = localStorage.getItem('wc_font');
+  if (savedFont) {
+    try {
+      Object.assign(fontSettings, JSON.parse(savedFont));
+      document.getElementById('font-family').value = fontSettings.family;
+      document.getElementById('font-bold').checked = fontSettings.bold;
+      document.getElementById('font-italic').checked = fontSettings.italic;
+      document.getElementById('font-size').value = fontSettings.size;
+      document.getElementById('line-height').value = Math.round(fontSettings.lineHeight * 10);
+      document.getElementById('editor-scale').value = fontSettings.editorScale;
+      document.getElementById('stats-scale').value = fontSettings.statsScale;
+    } catch (e) {}
+  }
+
+  const savedText = localStorage.getItem('wc_text');
+  if (savedText) {
+    document.getElementById('input').value = savedText;
+    updateStats();
+  }
+
+  applyFontSettings();
+});
+
+function openMenu() {
+  document.getElementById('menuOverlay').classList.add('open');
+  document.getElementById('menuPopup').classList.add('open');
+}
+
+function closeMenu() {
+  document.getElementById('menuOverlay').classList.remove('open');
+  document.getElementById('menuPopup').classList.remove('open');
+}
+
+function menuAction(screen) {
+  closeMenu();
+  showScreen(screen);
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+function toggleSetting(key, el) {
+  settings[key] = !settings[key];
+  el.classList.toggle('on', settings[key]);
+  updateStats();
+}
+
+function toggleExport(key, el) {
+  exportSettings[key] = !exportSettings[key];
+  el.classList.toggle('on', exportSettings[key]);
+}
+
+function setTheme(name, el) {
+  const t = themes[name];
+  document.documentElement.style.setProperty('--bg', t.bg);
+  document.documentElement.style.setProperty('--text', t.text);
+  document.documentElement.style.setProperty('--panel', t.panel);
+  document.documentElement.style.setProperty('--border', t.border);
+  document.querySelectorAll('.theme-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  localStorage.setItem('wc_theme', name);
+}
+
+function applyFontSettings() {
+  fontSettings.family = document.getElementById('font-family').value;
+  fontSettings.bold = document.getElementById('font-bold').checked;
+  fontSettings.italic = document.getElementById('font-italic').checked;
+  fontSettings.size = parseInt(document.getElementById('font-size').value);
+  fontSettings.lineHeight = parseInt(document.getElementById('line-height').value) / 10;
+  fontSettings.editorScale = parseInt(document.getElementById('editor-scale').value);
+  fontSettings.statsScale = parseInt(document.getElementById('stats-scale').value);
+
+  document.getElementById('font-size-val').textContent = fontSettings.size + 'px';
+  document.getElementById('line-height-val').textContent = fontSettings.lineHeight.toFixed(1);
+  document.getElementById('editor-scale-val').textContent = fontSettings.editorScale + '%';
+  document.getElementById('stats-scale-val').textContent = fontSettings.statsScale + '%';
+
+  const editor = document.getElementById('input');
+  editor.style.fontFamily = fontSettings.family;
+  editor.style.fontWeight = fontSettings.bold ? 'bold' : 'normal';
+  editor.style.fontStyle = fontSettings.italic ? 'italic' : 'normal';
+  editor.style.fontSize = fontSettings.size + 'px';
+  editor.style.lineHeight = fontSettings.lineHeight;
+
+  localStorage.setItem('wc_font', JSON.stringify(fontSettings));
+}
+
+function resetFontSettings() {
+  fontSettings.family = "'Segoe UI', Arial, sans-serif";
+  fontSettings.bold = false;
+  fontSettings.italic = false;
+  fontSettings.size = 14;
+  fontSettings.lineHeight = 1.6;
+  fontSettings.editorScale = 100;
+  fontSettings.statsScale = 100;
+
+  document.getElementById('font-family').value = fontSettings.family;
+  document.getElementById('font-bold').checked = false;
+  document.getElementById('font-italic').checked = false;
+  document.getElementById('font-size').value = 14;
+  document.getElementById('line-height').value = 16;
+  document.getElementById('editor-scale').value = 100;
+  document.getElementById('stats-scale').value = 100;
+
+  applyFontSettings();
+}
+
+function onInput() {
+  const text = document.getElementById('input').value;
+  if (text.trim() && !startTime) {
+    startTime = Date.now();
+    timerInterval = setInterval(updateStats, 1000);
+  }
+  if (!text.trim() && startTime) {
+    clearInterval(timerInterval);
+    startTime = null;
+    timerInterval = null;
+  }
+  updateStats();
+  if (settings.autoscroll) {
+    const ta = document.getElementById('input');
+    ta.scrollTop = ta.scrollHeight;
+  }
+  if (settings.autosave) {
+    localStorage.setItem('wc_text', text);
+  }
+}
+
+function formatTime(ms) {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
+function updateStats() {
+  const text = document.getElementById('input').value;
+  const words = text.toLowerCase().match(/[\wа-яё\-]+/gi) || [];
+  const chars = text.replace(/\s/g, '').length;
+  const unique = new Set(words).size;
+  const sentences = (text.match(/[.!?]+/g) || []).length;
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim()).length;
+
+  document.getElementById('s-chars').textContent = settings.chars ? chars : '—';
+  document.getElementById('s-words').textContent = words.length;
+  document.getElementById('s-sentences').textContent = settings.sentences ? sentences : '—';
+  document.getElementById('s-paragraphs').textContent = settings.paragraphs ? paragraphs : '—';
+  document.getElementById('s-unique').textContent = settings.unique ? unique : '—';
+  document.getElementById('s-time').textContent = startTime ? formatTime(Date.now() - startTime) : '00:00';
+
+  if (settings.autocopy && text.trim()) navigator.clipboard.writeText(text);
+}
+
+function copyText() {
+  const text = document.getElementById('input').value;
+  if (!text.trim()) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Скопировано');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Скопировано');
+  });
+}
+
+function showToast(msg) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.15);
+      color: inherit;
+      padding: 10px 24px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.2);
+      font-size: 13px;
+      text-shadow: 0 0 8px currentColor;
+      box-shadow: 0 0 20px currentColor;
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+  }, 1200);
+}
+
+function clearText() {
+  const text = document.getElementById('input').value;
+  if (!text.trim()) return;
+  showConfirm('Очистить текст?', () => {
+    document.getElementById('input').value = '';
+    localStorage.removeItem('wc_text');
+    clearInterval(timerInterval);
+    startTime = null;
+    timerInterval = null;
+    updateStats();
+  });
+}
+
+function showConfirm(msg, onYes) {
+  let overlay = document.getElementById('confirmOverlay');
+  if (overlay) overlay.remove();
+
+  overlay = document.createElement('div');
+  overlay.id = 'confirmOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  `;
+
+  const box = document.createElement('div');
+  box.style.cssText = `
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    text-align: center;
+    color: inherit;
+    box-shadow: 0 0 30px currentColor;
+    text-shadow: 0 0 8px currentColor;
+    min-width: 220px;
+  `;
+
+  const text = document.createElement('div');
+  text.textContent = msg;
+  text.style.cssText = `
+    font-size: 14px;
+    margin-bottom: 18px;
+    text-shadow: 0 0 8px currentColor;
+  `;
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = `display: flex; gap: 10px; justify-content: center;`;
+
+  const yesBtn = document.createElement('button');
+  yesBtn.textContent = 'Да';
+  yesBtn.style.cssText = `
+    padding: 8px 22px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 10px;
+    color: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-shadow: 0 0 6px currentColor;
+    box-shadow: 0 0 10px currentColor;
+  `;
+  yesBtn.onclick = () => { overlay.remove(); onYes(); };
+
+  const noBtn = document.createElement('button');
+  noBtn.textContent = 'Нет';
+  noBtn.style.cssText = `
+    padding: 8px 22px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+    color: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0.6;
+  `;
+  noBtn.onclick = () => overlay.remove();
+
+  btnRow.appendChild(yesBtn);
+  btnRow.appendChild(noBtn);
+  box.appendChild(text);
+  box.appendChild(btnRow);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+function compareTexts() {
+  const t1 = document.getElementById('text1').value.trim();
+  const t2 = document.getElementById('text2').value.trim();
+  const result = document.getElementById('compareResult');
+
+  if (!t1 || !t2) {
+    result.innerHTML = '<div style="text-align:center;opacity:0.5;padding:20px;">Введи оба текста</div>';
+    return;
+  }
+
+  const w1 = t1.toLowerCase().match(/[\wа-яё\-]+/gi) || [];
+  const w2 = t2.toLowerCase().match(/[\wа-яё\-]+/gi) || [];
+
+  const set1 = new Set(w1);
+  const set2 = new Set(w2);
+  const common = [...set1].filter(w => set2.has(w));
+  const total = new Set([...set1, ...set2]).size;
+  const percent = total ? Math.round((common.length / total) * 100) : 0;
+  const diff = total - common.length;
+
+  let wordsHtml = '';
+  w1.forEach(w => {
+    if (set2.has(w)) {
+      wordsHtml += `<span class="word match">${w}</span>`;
+    } else {
+      wordsHtml += `<span class="word diff">${w}</span>`;
+    }
+  });
+
+  result.innerHTML = `
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="big">${percent}%</div>
+        <div class="small">совпадение</div>
+      </div>
+      <div class="stat-box">
+        <div class="big">${common.length}</div>
+        <div class="small">совпавших слов</div>
+      </div>
+      <div class="stat-box">
+        <div class="big">${diff}</div>
+        <div class="small">различий</div>
+      </div>
+    </div>
+    <div class="result-label">РЕЗУЛЬТАТ</div>
+    <div class="result-box">${wordsHtml}</div>
+  `;
+}
+
+function analyzeText() {
+  const text1 = document.getElementById('text1').value;
+  const text2 = document.getElementById('text2').value;
+  const fullText = text1 + ' ' + text2;
+  const content = document.getElementById('analysisContent');
+
+  if (!fullText.trim()) {
+    content.innerHTML = '<div style="text-align:center;opacity:0.5;padding:20px;">Введи текст в поля выше</div>';
+    return;
+  }
+
+  const words = fullText.toLowerCase().match(/[\wа-яё\-]+/gi) || [];
+  const phrases = {};
+
+  for (let len = 7; len >= 3; len--) {
+    for (let i = 0; i <= words.length - len; i++) {
+      const phrase = words.slice(i, i + len).join(' ');
+      if (!phrases[phrase]) phrases[phrase] = { count: 0, len: len };
+      phrases[phrase].count++;
+    }
+  }
+
+  const repeated = Object.entries(phrases)
+    .filter(([_, data]) => data.count > 1)
+    .sort((a, b) => b[1].count - a[1].count || b[1].len - a[1].len)
+    .slice(0, 50);
+
+  if (repeated.length === 0) {
+    content.innerHTML = '<div style="text-align:center;opacity:0.5;padding:20px;">Нет повторяющихся фраз</div>';
+    return;
+  }
+
+  let html = '';
+  repeated.forEach(([phrase, data]) => {
+    html += `
+      <div class="phrase-item">
+        <div>
+          <div class="phrase-text">${phrase}</div>
+          <div class="phrase-count">${data.len} слов</div>
+        </div>
+        <div class="count-badge">${data.count}×</div>
+      </div>
+    `;
+  });
+  content.innerHTML = html;
+}
+
+function exportToFile() {
+  const text = document.getElementById('input').value;
+  const result = document.getElementById('exportResult');
+
+  if (!text.trim()) {
+    result.innerHTML = '<div style="text-align:center;opacity:0.5;padding:20px;">Нет текста для экспорта</div>';
+    return;
+  }
+
+  const words = text.toLowerCase().match(/[\wа-яё\-]+/gi) || [];
+  const chars = text.replace(/\s/g, '').length;
+  const unique = new Set(words).size;
+  const sentences = (text.match(/[.!?]+/g) || []).length;
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim()).length;
+
+  let content = '';
+
+  if (exportSettings.text) {
+    content += '=== ТЕКСТ ===\n\n' + text + '\n\n';
+  }
+
+  if (exportSettings.stats) {
+    content += '=== СТАТИСТИКА ===\n';
+    content += `Символы: ${chars}\n`;
+    content += `Слова: ${words.length}\n`;
+    content += `Предложения: ${sentences}\n`;
+    content += `Абзацы: ${paragraphs}\n`;
+    content += `Уникальные: ${unique}\n`;
+    content += `Дата: ${new Date().toLocaleString('ru-RU')}\n`;
+  }
+
+  const filename = (document.getElementById('export-filename').value || 'word-counter') + '.txt';
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  result.innerHTML = `<div style="text-align:center;padding:15px;color:inherit;">✅ Файл ${filename} сохранён</div>`;
+  showToast('Файл сохранён');
+}
+
+function shareText() {
+  const text = document.getElementById('input').value;
+  if (!text.trim()) {
+    document.getElementById('exportResult').innerHTML = '<div style="text-align:center;opacity:0.5;padding:20px;">Нет текста</div>';
+    return;
+  }
+
+  if (navigator.share) {
+    navigator.share({ title: 'Word Counter', text: text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => showToast('Скопировано'));
+  }
+}
+</script>
+</body>
+</html>
